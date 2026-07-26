@@ -1,4 +1,4 @@
-# Companies House
+# Using Companies House (to find officers associated with fraudulent stories)
 
 In the first half of 2025 I began to be engaged in a battle with Rebel Energy, which I resolved through the energy ombudsman. It was an awful experience throughout. It turns out that my problem was the least of the issue at Rebel, and they were forced to cease trading when millions green energy subsidies paid to Rebel went missing.
 
@@ -57,3 +57,5 @@ ID and upserts those appointments into the same table using the same
 
 ## Example - Where are Rebel's officers now
 I confirmed manually that there is at least one Rebel Director who is, at the time of writing, an active director of a different company. I've contacted the company at which they are active. Take a look at `Where_are_rebel_officers_now.ipynb`.
+
+The same code can, of course, be used if you know the name of a company that has wronged you before and also turned out to be (by your judgement) fraudulent.
