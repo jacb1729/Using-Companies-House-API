@@ -23,6 +23,8 @@ DATABASE_PATH = Path(__file__).resolve().with_name(
 TABLE_NAME = "search_data_by_company_number"
 CREDENTIALS_PATH = Path(__file__).resolve().with_name("credentials.toml")
 PAGE_SIZE = 100
+MIN_REQUEST_INTERVAL = 1.5
+_last_request_at: float | None = None
 EXPECTED_COLUMNS = (
     "company_number",
     "company_name",
@@ -42,6 +44,16 @@ class CompaniesHouseError(RuntimeError):
 
 class ResponseShapeError(CompaniesHouseError):
     """Raised when an API response is missing data required by this tool."""
+
+
+def _wait_for_request_slot() -> None:
+    """Keep all Companies House requests below the published rate limit."""
+    global _last_request_at
+
+    now = time.monotonic()
+    if _last_request_at is not None:
+        time.sleep(max(0.0, MIN_REQUEST_INTERVAL - (now - _last_request_at)))
+    _last_request_at = time.monotonic()
 
 
 def _load_api_configuration() -> tuple[str, str]:
@@ -132,6 +144,8 @@ def _api_get_json(
     api_key: str,
     path: str,
     query: dict[str, int | str] | None = None,
+    *,
+    empty_on_not_found: bool = False,
 ) -> dict[str, Any]:
     """Issue an authenticated GET and return a JSON object."""
     encoded_query = urllib.parse.urlencode(query or {})
@@ -153,6 +167,7 @@ def _api_get_json(
     retry_delays = (0.5, 1.0)
     for attempt in range(len(retry_delays) + 1):
         try:
+            _wait_for_request_slot()
             with urllib.request.urlopen(request, timeout=30) as response:
                 payload = json.load(response)
             if not isinstance(payload, dict):
@@ -161,6 +176,8 @@ def _api_get_json(
                 )
             return payload
         except urllib.error.HTTPError as exc:
+            if exc.code == 404 and empty_on_not_found:
+                return {}
             if exc.code == 429:
                 retry_after = exc.headers.get("Retry-After")
                 try:
@@ -267,8 +284,10 @@ def search_officers_by_company_number(company_number: str) -> dict[str, Any]:
     canonical_company_number = profile.get("company_number", company_number)
     if not isinstance(company_name, str) or not company_name:
         raise ResponseShapeError("The company profile has no company_name.")
-    if not isinstance(company_status, str) or not company_status:
-        raise ResponseShapeError("The company profile has no company_status.")
+    if isinstance(company_status, str) and not company_status.strip():
+        company_status = None
+    elif company_status is not None and not isinstance(company_status, str):
+        raise ResponseShapeError("The company profile has an invalid company_status.")
     if not isinstance(canonical_company_number, str):
         raise ResponseShapeError("The company profile has an invalid company_number.")
 
@@ -383,7 +402,7 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
             company_number TEXT NOT NULL,
             company_name TEXT NOT NULL,
-            company_status TEXT NOT NULL,
+            company_status TEXT,
             officer_id TEXT NOT NULL,
             office_name TEXT NOT NULL,
             officer_role TEXT NOT NULL,
@@ -418,9 +437,13 @@ def store_data_from_search_by_company_number(
     officers = payload.get("officers")
     if not all(
         isinstance(value, str) and value
-        for value in (company_number, company_name, company_status)
+        for value in (company_number, company_name)
     ):
         raise ResponseShapeError("The payload has invalid company fields.")
+    if isinstance(company_status, str) and not company_status.strip():
+        company_status = None
+    elif company_status is not None and not isinstance(company_status, str):
+        raise ResponseShapeError("The payload has an invalid company_status.")
     if not isinstance(officers, list):
         raise ResponseShapeError("The payload has no officers list.")
 

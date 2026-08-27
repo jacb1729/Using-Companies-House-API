@@ -1,3 +1,4 @@
 credentials.toml
 __pycache__/
 AGENTS.md # Just something I've been using to help me develop this - not needed for its use.
+hmo_pages
