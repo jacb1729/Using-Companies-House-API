@@ -76,3 +76,11 @@ Before I knew about the red flags of unlicenced HMOs, I lived in a cramped flat 
 Howsy's officers are active at tens of companies. How typical is this?
 
 I scraped a source of HMO Management/Licencing company names, used this to pull companies which match each name
+
+Run the complete, checkpointed HMO investigation with:
+
+```bash
+python Investigate_hmo_networks.py
+```
+
+Use `--phase match` or `--phase expand` to run only one of its two phases.
